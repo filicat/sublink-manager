@@ -333,6 +333,23 @@ export function createApp(bindings = {}) {
         }
     });
 
+    app.post('/shorten-v2/verify', async (c) => {
+        try {
+            const { shortCode, editToken } = await c.req.json();
+            if (!shortCode || !editToken) {
+                return c.json({ error: 'Missing required parameters' }, 400);
+            }
+            const shortLinks = requireShortLinkService(services.shortLinks);
+            const valid = await shortLinks.verifyEditToken(shortCode, editToken);
+            return c.json({ valid });
+        } catch (error) {
+            if (error instanceof ForbiddenError) {
+                return c.json({ error: error.message }, 403);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
     app.post('/shorten-v2/update', async (c) => {
         try {
             const { shortCode, editToken, url } = await c.req.json();

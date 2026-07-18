@@ -752,6 +752,10 @@ export const formLogicFn = (t) => {
                             const err = await verifyRes.json().catch(() => ({}));
                             alert(window.APP_TRANSLATIONS.updateFailed + ': ' + (err.error || 'Invalid edit token'));
                             this.editingLink = null;
+                            this.input = '';
+                            this.generatedLinks = null;
+                            this.shortenedLinks = null;
+                            this.editTokenText = '';
                             this.myLinks = this.myLinks.filter(l => l.shortCode !== link.shortCode);
                             this.saveMyLinks();
                             return;
@@ -759,6 +763,10 @@ export const formLogicFn = (t) => {
                         if (verifyRes.status === 404) {
                             alert(window.APP_TRANSLATIONS.shortUrlNotFound || 'Short URL not found');
                             this.editingLink = null;
+                            this.input = '';
+                            this.generatedLinks = null;
+                            this.shortenedLinks = null;
+                            this.editTokenText = '';
                             this.myLinks = this.myLinks.filter(l => l.shortCode !== link.shortCode);
                             this.saveMyLinks();
                             return;
@@ -870,13 +878,31 @@ export const formLogicFn = (t) => {
                 this.editTokenText = '';
             },
 
-            addManualLink() {
+            async addManualLink() {
                 const code = (this.manualShortCode || '').trim();
                 const token = (this.manualEditToken || '').trim();
                 if (!code || !token) {
                     alert(window.APP_TRANSLATIONS.missingTokenOrCode || 'Please enter both short code and edit token.');
                     return;
                 }
+
+                // Verify the token before adding
+                try {
+                    const verifyRes = await fetch('/shorten-v2/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ shortCode: code, editToken: token })
+                    });
+                    if (!verifyRes.ok) {
+                        const err = await verifyRes.json().catch(() => ({}));
+                        alert(window.APP_TRANSLATIONS.updateFailed + ': ' + (err.error || 'Invalid edit token'));
+                        return;
+                    }
+                } catch (e) {
+                    alert(window.APP_TRANSLATIONS.updateFailed + ': Network error, please try again');
+                    return;
+                }
+
                 this.addToMyLinks(code, token);
                 this.manualShortCode = '';
                 this.manualEditToken = '';

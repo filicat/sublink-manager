@@ -55,6 +55,26 @@ export class ShortLinkService {
         return kv.get(code);
     }
 
+    /**
+     * Verify an edit token without modifying any data.
+     * Returns true if the token is valid, throws ForbiddenError otherwise.
+     */
+    async verifyEditToken(shortCode, editToken) {
+        const kv = this.ensureKv();
+
+        const existing = await kv.get(shortCode);
+        if (existing === null) {
+            throw new ForbiddenError('Short URL not found');
+        }
+
+        const storedToken = await kv.get(EDIT_TOKEN_PREFIX + shortCode);
+        if (!storedToken || storedToken !== editToken) {
+            throw new ForbiddenError('Invalid edit token');
+        }
+
+        return true;
+    }
+
     async updateShortLink(shortCode, editToken, newQueryString) {
         const kv = this.ensureKv();
 
