@@ -359,7 +359,7 @@ export const Form = (props) => {
   <div class="flex flex-col sm:flex-row gap-4">
           <button
             type="submit"
-            x-on:click.prevent="editingLink ? updateExistingLink() : submitForm()"
+            {...{'x-on:click.prevent': 'editingLink ? updateExistingLink() : submitForm()'}}
             class="flex-1 py-3.5 px-6 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2"
             x-bind:disabled="loading"
           >
@@ -509,7 +509,7 @@ class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 bo
       </div>
 
       <div x-show="myLinksSectionOpen" class="space-y-3">
-        <template x-for="(link, index) in myLinks" :key="link.shortCode">
+        <template x-for="(link, index) in myLinks" x-bind:key="link.shortCode">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 gap-2">
             <div class="flex-1 min-w-0">
               <p class="text-sm font-mono text-primary-600 dark:text-primary-400 truncate"
