@@ -1,5 +1,22 @@
 import { generateWebPath } from '../utils.js';
-import { MissingDependencyError } from './errors.js';
+import { ForbiddenError, MissingDependencyError } from './errors.js';
+
+/**
+ * Generate a 128-bit cryptographically random edit token.
+ * Falls back to generateWebPath if crypto.getRandomValues is unavailable (e.g. old runtimes).
+ */
+export function generateEditToken() {
+    try {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch {
+        // Fallback: 32-char alphanumeric string (~190 bits of entropy from Math.random)
+        return generateWebPath(32);
+    }
+}
+
+const EDIT_TOKEN_PREFIX = 'et:';
 
 export class ShortLinkService {
     constructor(kv, options = {}) {
@@ -19,12 +36,76 @@ export class ShortLinkService {
         const shortCode = providedCode || generateWebPath();
         const ttl = this.options.shortLinkTtlSeconds;
         const putOptions = ttl ? { expirationTtl: ttl } : undefined;
+
+        // Store the query string
         await kv.put(shortCode, queryString, putOptions);
-        return shortCode;
+
+        // Generate and store edit token, or reuse existing one
+        let editToken = await kv.get(EDIT_TOKEN_PREFIX + shortCode);
+        if (!editToken) {
+            editToken = generateEditToken();
+            await kv.put(EDIT_TOKEN_PREFIX + shortCode, editToken, putOptions);
+        }
+
+        return { shortCode, editToken };
     }
 
     async resolveShortCode(code) {
         const kv = this.ensureKv();
         return kv.get(code);
+    }
+
+    async updateShortLink(shortCode, editToken, newQueryString) {
+        const kv = this.ensureKv();
+
+        // Verify the short link exists
+        const existing = await kv.get(shortCode);
+        if (existing === null) {
+            throw new MissingDependencyError('Short URL not found');
+        }
+
+        // Verify edit token
+        const storedToken = await kv.get(EDIT_TOKEN_PREFIX + shortCode);
+        if (!storedToken) {
+            throw new ForbiddenError('This short link was created before edit support. Please create a new one.');
+        }
+        if (storedToken !== editToken) {
+            throw new ForbiddenError('Invalid edit token');
+        }
+
+        const ttl = this.options.shortLinkTtlSeconds;
+        const putOptions = ttl ? { expirationTtl: ttl } : undefined;
+        await kv.put(shortCode, newQueryString, putOptions);
+
+        // Refresh edit token TTL to match
+        if (putOptions) {
+            await kv.put(EDIT_TOKEN_PREFIX + shortCode, editToken, putOptions);
+        }
+
+        return { shortCode };
+    }
+
+    async deleteShortLink(shortCode, editToken) {
+        const kv = this.ensureKv();
+
+        // Verify the short link exists
+        const existing = await kv.get(shortCode);
+        if (existing === null) {
+            throw new MissingDependencyError('Short URL not found');
+        }
+
+        // Verify edit token
+        const storedToken = await kv.get(EDIT_TOKEN_PREFIX + shortCode);
+        if (!storedToken) {
+            throw new ForbiddenError('This short link was created before edit support. Please create a new one.');
+        }
+        if (storedToken !== editToken) {
+            throw new ForbiddenError('Invalid edit token');
+        }
+
+        await kv.delete(shortCode);
+        await kv.delete(EDIT_TOKEN_PREFIX + shortCode);
+
+        return { deleted: true };
     }
 }

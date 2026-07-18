@@ -46,6 +46,25 @@
 - **Docker**: `docker pull ghcr.io/7sageer/sublink-worker:latest`
 - **Docker Compose**: `docker compose up -d` (includes Redis)
 
+### Deploying a Fork alongside the Original
+
+If you already have the original `sublink-worker` deployed and want to run your fork as a separate instance:
+
+1. **Rename the Worker**: Edit `wrangler.toml` and change `name = "sublink-worker"` to your fork's name (e.g. `name = "sublink-manager"`)
+2. **Create a new KV Namespace**:
+   ```bash
+   npx wrangler kv:namespace create "SUBLINK_KV"
+   ```
+   Copy the output `id` and replace the existing one in `wrangler.toml`.
+3. **Deploy**:
+   ```bash
+   npm run deploy
+   ```
+4. **Alternative — Docker** (no Cloudflare needed):
+   ```bash
+   docker compose up -d
+   # Access at http://localhost:8787 (includes Redis)
+
 ## ✨ Features
 
 ### Supported Protocols
@@ -62,6 +81,7 @@ Sing-Box • Clash • Xray/V2Ray • Surge
 ### Core Capabilities
 - Import subscriptions from multiple sources
 - Generate fixed/random short links (KV-based)
+- Edit/update existing short links (edit token protected)
 - Light/Dark theme toggle
 - Flexible API for script automation
 - Multi-language support (Chinese, English, Persian, Russian)

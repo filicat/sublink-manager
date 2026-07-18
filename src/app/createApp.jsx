@@ -14,7 +14,7 @@ import { encodeBase64, tryDecodeSubscriptionLines } from '../utils.js';
 import { APP_NAME, APP_SUBTITLE } from '../constants.js';
 import { ShortLinkService } from '../services/shortLinkService.js';
 import { ConfigStorageService } from '../services/configStorageService.js';
-import { ServiceError, MissingDependencyError } from '../services/errors.js';
+import { ServiceError, MissingDependencyError, ForbiddenError } from '../services/errors.js';
 import { normalizeRuntime } from '../runtime/runtimeConfig.js';
 import { PREDEFINED_RULE_SETS, SING_BOX_CONFIG, SING_BOX_CONFIG_V1_11, generateSubconverterConfig } from '../config/index.js';
 
@@ -325,9 +325,50 @@ export function createApp(bindings = {}) {
             const queryString = parsedUrl.search;
 
             const shortLinks = requireShortLinkService(services.shortLinks);
-            const code = await shortLinks.createShortLink(queryString, c.req.query('shortCode'));
-            return c.text(code);
+            const result = await shortLinks.createShortLink(queryString, c.req.query('shortCode'));
+            c.header('X-Edit-Token', result.editToken);
+            return c.text(result.shortCode);
         } catch (error) {
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.post('/shorten-v2/update', async (c) => {
+        try {
+            const { shortCode, editToken, url } = await c.req.json();
+            if (!shortCode || !editToken || !url) {
+                return c.json({ error: 'Missing required parameters: shortCode, editToken, url' }, 400);
+            }
+            let parsedUrl;
+            try {
+                parsedUrl = new URL(url);
+            } catch {
+                return c.json({ error: 'Invalid URL parameter' }, 400);
+            }
+            const shortLinks = requireShortLinkService(services.shortLinks);
+            const result = await shortLinks.updateShortLink(shortCode, editToken, parsedUrl.search);
+            return c.json({ shortCode: result.shortCode, updated: true });
+        } catch (error) {
+            if (error instanceof ForbiddenError) {
+                return c.json({ error: error.message }, 403);
+            }
+            return handleError(c, error, runtime.logger);
+        }
+    });
+
+    app.delete('/shorten-v2', async (c) => {
+        try {
+            const { shortCode, editToken } = await c.req.json();
+            if (!shortCode || !editToken) {
+                return c.json({ error: 'Missing required parameters: shortCode, editToken' }, 400);
+            }
+            const shortLinks = requireShortLinkService(services.shortLinks);
+            const result = await shortLinks.deleteShortLink(shortCode, editToken);
+            return c.json(result);
+        } catch (error) {
+            if (error instanceof ForbiddenError) {
+                return c.json({ error: error.message }, 403);
+            }
             return handleError(c, error, runtime.logger);
         }
     });

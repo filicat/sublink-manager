@@ -113,6 +113,15 @@ export const formLogicFn = (t) => {
             shorteningText: '',
             showFullLinksText: '',
 
+            // Edit link management
+            myLinks: [],
+            editingLink: null,
+            myLinksSectionOpen: false,
+            manualShortCode: '',
+            manualEditToken: '',
+            editTokenCopied: false,
+            editTokenText: '',
+
             init() {
                 // Load translations
                 if (window.APP_TRANSLATIONS) {
@@ -121,6 +130,7 @@ export const formLogicFn = (t) => {
                     this.shortenLinksText = window.APP_TRANSLATIONS.shortenLinks;
                     this.shorteningText = window.APP_TRANSLATIONS.shortening;
                     this.showFullLinksText = window.APP_TRANSLATIONS.showFullLinks;
+                    this.updateShortLinkText = window.APP_TRANSLATIONS.updateShortLink;
                     this.saveConfigText = window.APP_TRANSLATIONS.saveConfig;
                     this.savingConfigText = window.APP_TRANSLATIONS.savingConfig;
                     this.configContentRequiredText = window.APP_TRANSLATIONS.configContentRequired;
@@ -154,6 +164,16 @@ export const formLogicFn = (t) => {
 
                 // Initialize rules
                 this.applyPredefinedRule();
+
+                // Load saved links from localStorage
+                try {
+                    const savedLinks = localStorage.getItem('sublink_my_links');
+                    if (savedLinks) {
+                        this.myLinks = JSON.parse(savedLinks);
+                    }
+                } catch (e) {
+                    this.myLinks = [];
+                }
 
                 // Watchers to save state
                 this.$watch('input', val => {
@@ -347,6 +367,8 @@ export const formLogicFn = (t) => {
                     this.generatedLinks = null;
                     this.shortenedLinks = null;
                     this.customShortCode = '';
+                    this.editingLink = null;
+                    this.editTokenText = '';
                     // Also clear from localStorage
                     localStorage.removeItem('customShortCode');
                 }
@@ -437,6 +459,7 @@ export const formLogicFn = (t) => {
                     let isFirstRequest = true;
 
                     // Shorten each link type
+                    let editToken = null;
                     for (const [type, url] of Object.entries(this.generatedLinks)) {
                         try {
                             let apiUrl = `${origin}/shorten-v2?url=${encodeURIComponent(url)}`;
@@ -450,6 +473,10 @@ export const formLogicFn = (t) => {
                             const response = await fetch(apiUrl);
                             if (!response.ok) {
                                 throw new Error(`Failed to shorten ${type} link`);
+                            }
+                            // Capture edit token from header (only on first request)
+                            if (isFirstRequest) {
+                                editToken = response.headers.get('X-Edit-Token');
                             }
                             const returnedCode = await response.text();
 
@@ -476,6 +503,15 @@ export const formLogicFn = (t) => {
                     }
 
                     this.shortenedLinks = shortened;
+
+                    // Save to myLinks with edit token
+                    if (shortCode && editToken) {
+                        this.addToMyLinks(shortCode, editToken);
+                    }
+                    // Show edit token for user to copy
+                    if (editToken) {
+                        this.editTokenText = editToken;
+                    }
                 } catch (error) {
                     console.error('Error shortening links:', error);
                     alert(window.APP_TRANSLATIONS.shortenFailed);
@@ -650,6 +686,175 @@ export const formLogicFn = (t) => {
                     externalController || externalUiDownloadUrl || ua || configId) {
                     this.showAdvanced = true;
                 }
+            },
+
+            // --- My Links management ---
+
+            addToMyLinks(shortCode, editToken) {
+                const newLink = {
+                    shortCode,
+                    editToken,
+                    createdAt: new Date().toISOString(),
+                    prefixes: ['x', 'b', 'c', 's']
+                };
+                // Deduplicate by shortCode
+                this.myLinks = this.myLinks.filter(l => l.shortCode !== shortCode);
+                this.myLinks.unshift(newLink);
+                // Keep last 50
+                if (this.myLinks.length > 50) {
+                    this.myLinks = this.myLinks.slice(0, 50);
+                }
+                this.saveMyLinks();
+            },
+
+            saveMyLinks() {
+                try {
+                    localStorage.setItem('sublink_my_links', JSON.stringify(this.myLinks));
+                } catch (e) {
+                    // localStorage full or unavailable, ignore
+                }
+            },
+
+            async loadLinkToEdit(link) {
+                this.editingLink = link;
+                // Resolve the existing config via the /resolve endpoint
+                const origin = window.location.origin;
+                const shortUrl = `${origin}/${link.prefixes[0]}/${link.shortCode}`;
+
+                try {
+                    const response = await fetch(`/resolve?url=${encodeURIComponent(shortUrl)}`);
+                    if (!response.ok) {
+                        alert(window.APP_TRANSLATIONS.invalidShortUrl || 'Failed to resolve short URL');
+                        this.editingLink = null;
+                        return;
+                    }
+                    const data = await response.json();
+                    if (!data.originalUrl) {
+                        alert(window.APP_TRANSLATIONS.invalidShortUrl || 'Failed to resolve short URL');
+                        this.editingLink = null;
+                        return;
+                    }
+                    const urlToParse = new URL(data.originalUrl);
+                    this.populateFormFromUrl(urlToParse);
+                    // Scroll to form
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                } catch (error) {
+                    console.error('Error loading link for edit:', error);
+                    alert(window.APP_TRANSLATIONS.invalidShortUrl || 'Failed to resolve short URL');
+                    this.editingLink = null;
+                }
+            },
+
+            async updateExistingLink() {
+                if (!this.editingLink) return;
+
+                this.loading = true;
+                try {
+                    const origin = window.location.origin;
+                    const customRulesInput = document.querySelector('input[name="customRules"]');
+                    const customRules = customRulesInput && customRulesInput.value ? JSON.parse(customRulesInput.value) : [];
+
+                    const params = new URLSearchParams();
+                    params.append('config', this.input);
+                    params.append('ua', this.customUA);
+                    params.append('selectedRules', JSON.stringify(this.selectedRules));
+                    params.append('customRules', JSON.stringify(customRules));
+
+                    if (this.groupByCountry) params.append('group_by_country', 'true');
+                    if (!this.includeAutoSelect) params.append('include_auto_select', 'false');
+                    if (this.enableClashUI) params.append('enable_clash_ui', 'true');
+                    if (this.externalController) params.append('external_controller', this.externalController);
+                    if (this.externalUiDownloadUrl) params.append('external_ui_download_url', this.externalUiDownloadUrl);
+
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const configId = this.currentConfigId || urlParams.get('configId');
+                    if (configId) {
+                        params.append('configId', configId);
+                    }
+
+                    const newUrl = `${origin}/xray?${params.toString()}`;
+
+                    const response = await fetch('/shorten-v2/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            shortCode: this.editingLink.shortCode,
+                            editToken: this.editingLink.editToken,
+                            url: newUrl
+                        })
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || 'Update failed');
+                    }
+
+                    alert(window.APP_TRANSLATIONS.updateSuccess || 'Short link updated!');
+                    this.editingLink = null;
+                    this.editTokenText = '';
+
+                    // Refresh generated links display
+                    await this.submitForm();
+                } catch (error) {
+                    alert(`${window.APP_TRANSLATIONS.updateFailed || 'Update failed'}: ${error.message}`);
+                } finally {
+                    this.loading = false;
+                }
+            },
+
+            deleteMyLink(link) {
+                if (!confirm(window.APP_TRANSLATIONS.confirmDeleteLink || 'Delete this saved link?')) return;
+                this.myLinks = this.myLinks.filter(l => l.shortCode !== link.shortCode);
+                this.saveMyLinks();
+                if (this.editingLink && this.editingLink.shortCode === link.shortCode) {
+                    this.editingLink = null;
+                }
+            },
+
+            async deleteShortLinkFromServer(link) {
+                if (!confirm(window.APP_TRANSLATIONS.confirmDeleteLink || 'Delete this short link from server? This cannot be undone.')) return;
+                try {
+                    const response = await fetch('/shorten-v2', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            shortCode: link.shortCode,
+                            editToken: link.editToken
+                        })
+                    });
+                    if (!response.ok) {
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error || 'Delete failed');
+                    }
+                    this.deleteMyLink(link);
+                    alert(window.APP_TRANSLATIONS.deleteSuccess || 'Short link deleted from server.');
+                } catch (error) {
+                    alert(`${window.APP_TRANSLATIONS.deleteFailed || 'Delete failed'}: ${error.message}`);
+                }
+            },
+
+            cancelEditing() {
+                this.editingLink = null;
+                this.editTokenText = '';
+            },
+
+            addManualLink() {
+                const code = (this.manualShortCode || '').trim();
+                const token = (this.manualEditToken || '').trim();
+                if (!code || !token) {
+                    alert(window.APP_TRANSLATIONS.missingTokenOrCode || 'Please enter both short code and edit token.');
+                    return;
+                }
+                this.addToMyLinks(code, token);
+                this.manualShortCode = '';
+                this.manualEditToken = '';
+            },
+
+            copyEditToken(token) {
+                navigator.clipboard.writeText(token).then(() => {
+                    this.editTokenCopied = true;
+                    setTimeout(() => this.editTokenCopied = false, 2000);
+                }).catch(() => {});
             }
         }
     }

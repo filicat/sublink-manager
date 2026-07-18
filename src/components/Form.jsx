@@ -34,7 +34,29 @@ export const Form = (props) => {
     customShortCode: t('customShortCode'),
     optional: t('optional'),
     customShortCodePlaceholder: t('customShortCodePlaceholder'),
-    showFullLinks: t('showFullLinks')
+    showFullLinks: t('showFullLinks'),
+    // Edit link management
+    myLinks: t('myLinks'),
+    editLink: t('editLink'),
+    deleteLink: t('deleteLink'),
+    confirmDeleteLink: t('confirmDeleteLink'),
+    updateShortLink: t('updateShortLink'),
+    updating: t('updating'),
+    updateFailed: t('updateFailed'),
+    updateSuccess: t('updateSuccess'),
+    editingLinkPrefix: t('editingLinkPrefix'),
+    editToken: t('editToken'),
+    editTokenCopied: t('editTokenCopied'),
+    storeEditTokenHint: t('storeEditTokenHint'),
+    cancel: t('cancel'),
+    manualAddLink: t('manualAddLink'),
+    addLink: t('addLink'),
+    deleteFromServer: t('deleteFromServer'),
+    deleteSuccess: t('deleteSuccess'),
+    deleteFailed: t('deleteFailed'),
+    missingTokenOrCode: t('missingTokenOrCode'),
+    manualShortCodePlaceholder: t('manualShortCodePlaceholder'),
+    manualEditTokenPlaceholder: t('manualEditTokenPlaceholder'),
   };
 
   const scriptContent = `
@@ -96,8 +118,8 @@ export const Form = (props) => {
       </div>
 
       {/* Advanced Options Toggle */}
-      <div 
-        class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors" 
+      <div
+        class="flex items-center justify-between bg-white dark:bg-gray-800 rounded-xl p-4 shadow-sm border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
         x-on:click="showAdvanced = !showAdvanced"
         role="button"
         tabindex="0"
@@ -112,8 +134,8 @@ export const Form = (props) => {
           </div>
           <span class="font-semibold text-gray-900 dark:text-white">{t('advancedOptions')}</span>
         </div>
-        <div 
-          class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition-transform duration-300" 
+        <div
+          class="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 transition-transform duration-300"
           x-bind:class="{'rotate-180': showAdvanced}"
         >
           <i class="fas fa-chevron-down"></i>
@@ -144,7 +166,7 @@ export const Form = (props) => {
         <input
           type="checkbox"
           value={rule.name}
-          x-model="selectedRules" 
+          x-model="selectedRules"
                     x-on:change="selectedPredefinedRule = 'custom'"
         class="w-4 h-4 text-primary-600 rounded border-gray-300 focus:ring-primary-500 dark:bg-gray-700 dark:border-gray-600"
                   />
@@ -166,7 +188,7 @@ export const Form = (props) => {
               <i class="fas fa-cog text-gray-400"></i>
               {t('generalSettings')}
             </h3>
-            
+
             <div class="space-y-4">
               <label class="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors cursor-pointer">
                 <span class="font-medium text-gray-700 dark:text-gray-300">{t('groupByCountry')}</span>
@@ -252,7 +274,7 @@ export const Form = (props) => {
                 <option value="surge">Surge (JSON/INI)</option>
               </select>
           </div>
-            
+
             <ValidatedTextarea
               id="configEditor"
               name="configEditor"
@@ -287,11 +309,11 @@ export const Form = (props) => {
               inlineActionsWrapperClass="absolute bottom-4 right-4 flex gap-2"
               preserveLabelSpace={false}
             />
-            
+
             <div class="flex justify-end gap-3 mt-4">
-              <button 
-                type="button" 
-                x-on:click="saveBaseConfig()" 
+              <button
+                type="button"
+                x-on:click="saveBaseConfig()"
                 x-bind:disabled="savingConfig"
                 class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium text-sm disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
               >
@@ -310,28 +332,43 @@ export const Form = (props) => {
               <i class="fas fa-user-secret text-gray-400"></i>
               {t('UASettings')}
             </h3>
-            <input 
-              type="text" 
-              x-model="customUA" 
-              class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent" 
-              placeholder="curl/7.74.0" 
+            <input
+              type="text"
+              x-model="customUA"
+              class="w-full px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="curl/7.74.0"
             />
           </div>
         </div>
 
+  {/* Editing Banner */ }
+  <div x-cloak x-show="editingLink" class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <i class="fas fa-pen text-amber-600 dark:text-amber-400"></i>
+      <span class="text-sm text-amber-800 dark:text-amber-200">
+        {t('editingLinkPrefix') + ' '}
+        <span class="font-mono font-bold" x-text="editingLink ? editingLink.shortCode : ''"></span>
+      </span>
+    </div>
+    <button type="button" x-on:click="cancelEditing()" class="text-sm text-amber-600 dark:text-amber-400 hover:underline">
+      {t('cancel')}
+    </button>
+  </div>
+
   {/* Action Buttons */ }
   <div class="flex flex-col sm:flex-row gap-4">
-          <button 
-            type="submit" 
+          <button
+            type="submit"
+            x-on:click.prevent="editingLink ? updateExistingLink() : submitForm()"
             class="flex-1 py-3.5 px-6 bg-gradient-to-r from-primary-600 to-primary-500 hover:from-primary-700 hover:to-primary-600 text-white rounded-xl font-bold shadow-lg shadow-primary-500/30 hover:shadow-primary-500/40 transform hover:-translate-y-0.5 transition-all duration-200 flex items-center justify-center gap-2"
             x-bind:disabled="loading"
           >
-            <i class="fas fa-sync-alt" x-bind:class="loading ? 'fa-spinner fa-spin' : 'fa-sync-alt'"></i>
-            <span x-text="loading ? processingText : convertText">{t('convert')}</span>
+            <i class="fas" x-bind:class="loading ? 'fa-spinner fa-spin' : (editingLink ? 'fa-pen' : 'fa-sync-alt')"></i>
+            <span x-text="loading ? processingText : (editingLink ? updateShortLinkText : convertText)">{t('convert')}</span>
           </button>
 
   <button
-    type="button" 
+    type="button"
             x-on:click="clearAll()"
 class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-xl font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 flex items-center justify-center gap-2 shadow-sm"
   >
@@ -419,6 +456,86 @@ class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 bo
             ></span>
           </button>
         </div>
+      </div>
+
+      {/* Edit Token Display */ }
+      <div x-cloak x-show="editTokenText" class="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
+        <div class="flex items-center justify-between">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">
+              <i class="fas fa-key mr-1"></i> {t('editToken')}
+            </p>
+            <div class="flex items-center gap-2">
+              <code class="text-xs font-mono text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/40 px-2 py-1 rounded break-all" x-text="editTokenText"></code>
+              <button type="button" x-on:click="copyEditToken(editTokenText)" class="shrink-0 px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-900/60 transition-colors">
+                <i class="fas" x-bind:class="editTokenCopied ? 'fa-check' : 'fa-copy'"></i>
+                <span class="ml-1" x-text="editTokenCopied ? 'Copied!' : 'Copy'"></span>
+              </button>
+            </div>
+            <p class="text-xs text-blue-500 dark:text-blue-400 mt-1">{t('storeEditTokenHint')}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {/* My Links Section */ }
+  <div x-cloak x-show="myLinks.length > 0" class="mt-8">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div class="flex items-center justify-between mb-4 cursor-pointer"
+           x-on:click="myLinksSectionOpen = !myLinksSectionOpen">
+        <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <i class="fas fa-history text-gray-400"></i>
+          {t('myLinks')}
+          <span class="text-sm font-normal text-gray-500">(<span x-text="myLinks.length"></span>)</span>
+        </h3>
+        <i class="fas fa-chevron-down text-gray-400 transition-transform"
+           x-bind:class="{'rotate-180': myLinksSectionOpen}"></i>
+      </div>
+
+      {/* Manual Add Link */ }
+      <div x-show="myLinksSectionOpen" class="mb-4 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30">
+        <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{t('manualAddLink')}</p>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input type="text" x-model="manualShortCode" placeholder={t('manualShortCodePlaceholder')}
+                 class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+          <input type="text" x-model="manualEditToken" placeholder={t('manualEditTokenPlaceholder')}
+                 class="flex-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent font-mono" />
+          <button type="button" x-on:click="addManualLink()"
+                  class="px-4 py-2 bg-primary-600 text-white rounded-lg text-sm font-medium hover:bg-primary-700 transition-colors whitespace-nowrap">
+            {t('addLink')}
+          </button>
+        </div>
+      </div>
+
+      <div x-show="myLinksSectionOpen" class="space-y-3">
+        <template x-for="(link, index) in myLinks" :key="link.shortCode">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 gap-2">
+            <div class="flex-1 min-w-0">
+              <p class="text-sm font-mono text-primary-600 dark:text-primary-400 truncate"
+                 x-text="`${window.location.origin}/x/${link.shortCode}`">
+              </p>
+              <p class="text-xs text-gray-500 mt-1" x-text="new Date(link.createdAt).toLocaleString()"></p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button type="button"
+                      x-on:click="loadLinkToEdit(link)"
+                      class="px-3 py-1.5 text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 rounded-lg hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors">
+                {t('editLink')}
+              </button>
+              <button type="button"
+                      x-on:click="copyEditToken(link.editToken)"
+                      class="px-3 py-1.5 text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors">
+                <i class="fas fa-key"></i>
+              </button>
+              <button type="button"
+                      x-on:click="deleteMyLink(link)"
+                      class="px-3 py-1.5 text-xs font-medium bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors">
+                {t('deleteLink')}
+              </button>
+            </div>
+          </div>
+        </template>
       </div>
     </div>
   </div>

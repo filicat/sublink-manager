@@ -114,4 +114,95 @@ proxy-groups:
         expect(text).toBeTruthy();
         expect(kvMock.put).toHaveBeenCalled();
     });
+
+    it('GET /shorten-v2 returns X-Edit-Token header', async () => {
+        const url = 'http://example.com/xray?config=vmess://test';
+        const app = createTestApp();
+        const res = await app.request(`http://localhost/shorten-v2?url=${encodeURIComponent(url)}`);
+        expect(res.status).toBe(200);
+        const editToken = res.headers.get('X-Edit-Token');
+        expect(editToken).toBeTruthy();
+        expect(editToken).toHaveLength(32); // 128-bit hex
+    });
+
+    it('POST /shorten-v2/update updates config and returns success', async () => {
+        const app = createTestApp();
+        // Create a short link first
+        const createRes = await app.request('http://localhost/shorten-v2?url=http://example.com/xray?config=vmess://original');
+        const shortCode = await createRes.text();
+        const editToken = createRes.headers.get('X-Edit-Token');
+
+        // Update it
+        const updateRes = await app.request('http://localhost/shorten-v2/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shortCode,
+                editToken,
+                url: 'http://example.com/xray?config=vmess://updated'
+            })
+        });
+        expect(updateRes.status).toBe(200);
+        const json = await updateRes.json();
+        expect(json.updated).toBe(true);
+        expect(json.shortCode).toBe(shortCode);
+
+        // Verify via resolve
+        const resolveRes = await app.request(`http://localhost/resolve?url=http://localhost/x/${shortCode}`);
+        const data = await resolveRes.json();
+        expect(data.originalUrl).toContain('vmess://updated');
+    });
+
+    it('POST /shorten-v2/update returns 403 with wrong token', async () => {
+        const app = createTestApp();
+        const createRes = await app.request('http://localhost/shorten-v2?url=http://example.com/xray?config=vmess://original');
+        const shortCode = await createRes.text();
+
+        const updateRes = await app.request('http://localhost/shorten-v2/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shortCode,
+                editToken: '00000000000000000000000000000000',
+                url: 'http://example.com/xray?config=vmess://hacked'
+            })
+        });
+        expect(updateRes.status).toBe(403);
+    });
+
+    it('DELETE /shorten-v2 deletes short link with valid token', async () => {
+        const app = createTestApp();
+        const createRes = await app.request('http://localhost/shorten-v2?url=http://example.com/xray?config=vmess://test');
+        const shortCode = await createRes.text();
+        const editToken = createRes.headers.get('X-Edit-Token');
+
+        const deleteRes = await app.request('http://localhost/shorten-v2', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shortCode, editToken })
+        });
+        expect(deleteRes.status).toBe(200);
+        const json = await deleteRes.json();
+        expect(json.deleted).toBe(true);
+
+        // Verify it's gone
+        const resolveRes = await app.request(`http://localhost/x/${shortCode}`);
+        expect(resolveRes.status).toBe(404);
+    });
+
+    it('DELETE /shorten-v2 returns 403 with wrong token', async () => {
+        const app = createTestApp();
+        const createRes = await app.request('http://localhost/shorten-v2?url=http://example.com/xray?config=vmess://test');
+        const shortCode = await createRes.text();
+
+        const deleteRes = await app.request('http://localhost/shorten-v2', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                shortCode,
+                editToken: 'wrong-token-here-xxxxxxxxxxxxxxxx'
+            })
+        });
+        expect(deleteRes.status).toBe(403);
+    });
 });

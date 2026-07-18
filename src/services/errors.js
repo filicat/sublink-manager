@@ -26,3 +26,10 @@ export class InvalidConfigError extends ServiceError {
         this.name = 'InvalidConfigError';
     }
 }
+
+export class ForbiddenError extends ServiceError {
+    constructor(message = 'Forbidden') {
+        super(message, 403);
+        this.name = 'ForbiddenError';
+    }
+}
