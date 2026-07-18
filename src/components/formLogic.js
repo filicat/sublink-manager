@@ -736,6 +736,38 @@ export const formLogicFn = (t) => {
                     }
                     const urlToParse = new URL(data.originalUrl);
                     this.populateFormFromUrl(urlToParse);
+
+                    // Verify the edit token by doing a no-op update with the same config
+                    try {
+                        const verifyRes = await fetch('/shorten-v2/update', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                shortCode: link.shortCode,
+                                editToken: link.editToken,
+                                url: data.originalUrl
+                            })
+                        });
+                        if (verifyRes.status === 403) {
+                            const err = await verifyRes.json().catch(() => ({}));
+                            alert(window.APP_TRANSLATIONS.updateFailed + ': ' + (err.error || 'Invalid edit token'));
+                            this.editingLink = null;
+                            this.myLinks = this.myLinks.filter(l => l.shortCode !== link.shortCode);
+                            this.saveMyLinks();
+                            return;
+                        }
+                        if (verifyRes.status === 404) {
+                            alert(window.APP_TRANSLATIONS.shortUrlNotFound || 'Short URL not found');
+                            this.editingLink = null;
+                            this.myLinks = this.myLinks.filter(l => l.shortCode !== link.shortCode);
+                            this.saveMyLinks();
+                            return;
+                        }
+                    } catch (e) {
+                        // Network error — proceed anyway, actual update will verify
+                        console.warn('Token verification failed due to network:', e);
+                    }
+
                     // Scroll to form
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                 } catch (error) {
