@@ -116,7 +116,7 @@ export const formLogicFn = (t) => {
             // Edit link management
             myLinks: [],
             editingLink: null,
-            myLinksSectionOpen: false,
+            myLinksSectionOpen: true,
             manualShortCode: '',
             manualEditToken: '',
             editTokenCopied: false,

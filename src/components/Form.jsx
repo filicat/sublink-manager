@@ -479,15 +479,15 @@ class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 bo
     </div>
   </div>
 
-  {/* My Links Section */ }
-  <div x-cloak x-show="myLinks.length > 0" class="mt-8">
+  {/* My Links Section — always visible, manual add available even with empty list */ }
+  <div class="mt-8">
     <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <div class="flex items-center justify-between mb-4 cursor-pointer"
            x-on:click="myLinksSectionOpen = !myLinksSectionOpen">
         <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
           <i class="fas fa-history text-gray-400"></i>
           {t('myLinks')}
-          <span class="text-sm font-normal text-gray-500">(<span x-text="myLinks.length"></span>)</span>
+          <span class="text-sm font-normal text-gray-500" x-show="myLinks.length > 0">(<span x-text="myLinks.length"></span>)</span>
         </h3>
         <i class="fas fa-chevron-down text-gray-400 transition-transform"
            x-bind:class="{'rotate-180': myLinksSectionOpen}"></i>
@@ -508,7 +508,7 @@ class="px-6 py-3.5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 bo
         </div>
       </div>
 
-      <div x-show="myLinksSectionOpen" class="space-y-3">
+      <div x-show="myLinksSectionOpen && myLinks.length > 0" class="space-y-3">
         <template x-for="(link, index) in myLinks" x-bind:key="link.shortCode">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-gray-700/30 hover:bg-gray-100 dark:hover:bg-gray-700/50 gap-2">
             <div class="flex-1 min-w-0">
